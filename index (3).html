@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Looty - Open Mysterious Loot Boxes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes fadeIn {
+      0% { opacity: 0; transform: translateY(10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse-subtle {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+    @keyframes particleFloat {
+      0% { transform: translateY(0) translateX(0); opacity: 1; }
+      100% { transform: translateY(-50px) translateX(var(--rand-x)); opacity: 0; }
+    }
+    .fade-in { animation: fadeIn 0.5s ease-out; }
+    .pulse-subtle { animation: pulse-subtle 1s infinite; }
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      animation: particleFloat 1s ease-out forwards;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .card {
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+    }
+    body {
+      background: #1a1a2e;
+      background-size: cover;
+      background-attachment: fixed;
+      font-family: 'Poppins', sans-serif;
+    }
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+    .modal-content {
+        background: #2a2a44;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        max-width: 400px;
+        text-align: center;
+    }
+    .cutscene-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      animation: fadeIn 1s ease-out;
+    }
+    @keyframes shine {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .shiny-text {
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shine 2s infinite linear;
+    }
+
+    /* New Animations */
+    @keyframes loot-drop {
+        0% { transform: translateY(-50px) scale(0.5) rotate(-30deg); opacity: 0; }
+        100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
+    }
+    .loot-drop { animation: loot-drop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+    @keyframes button-pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(1); }
+    }
+    .button-pulse { animation: button-pulse 2s infinite; }
+  </style>
+</head>
+<body class="text-white min-h-screen flex flex-col md:flex-row">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const allItems = [
+      { name: "Rusty Sword", rarity: "Common", chance: 0.4, color: "text-gray-400", bg: "bg-gray-800", price: 10 },
+      { name: "Stone Pickaxe", rarity: "Common", chance: 0.4, color: "text-gray-400", bg: "bg-gray-800", price: 10 },
+      { name: "Worn Leather Armor", rarity: "Common", chance: 0.4, color: "text-gray-400", bg: "bg-gray-800", price: 10 },
+      { name: "Wooden Shield", rarity: "Common", chance: 0.4, color: "text-gray-400", bg: "bg-gray-800", price: 10 },
+      { name: "Old Scroll", rarity: "Common", chance: 0.4, color: "text-gray-400", bg: "bg-gray-800", price: 10 },
+      
+      { name: "Silver Armor", rarity: "Uncommon", chance: 0.3, color: "text-green-400", bg: "bg-green-900", price: 50 },
+      { name: "Iron Axe", rarity: "Uncommon", chance: 0.3, color: "text-green-400", bg: "bg-green-900", price: 50 },
+      { name: "Steel Helmet", rarity: "Uncommon", chance: 0.3, color: "text-green-400", bg: "bg-green-900", price: 50 },
+      { name: "Health Potion", rarity: "Uncommon", chance: 0.3, color: "text-green-400", bg: "bg-green-900", price: 50 },
+      { name: "Thief's Dagger", rarity: "Uncommon", chance: 0.3, color: "text-green-400", bg: "bg-green-900", price: 50 },
+      
+      { name: "Cursed Ring", rarity: "Rare", chance: 0.2, color: "text-blue-400", bg: "bg-blue-900", price: 200 },
+      { name: "Fire Sword", rarity: "Rare", chance: 0.2, color: "text-blue-400", bg: "bg-blue-900", price: 200 },
+      { name: "Wizard's Robe", rarity: "Rare", chance: 0.2, color: "text-blue-400", bg: "bg-blue-900", price: 200 },
+      { name: "Magic Staff", rarity: "Rare", chance: 0.2, color: "text-blue-400", bg: "bg-blue-900", price: 200 },
+      { name: "Fairy Bow", rarity: "Rare", chance: 0.2, color: "text-blue-400", bg: "bg-blue-900", price: 200 },
+      
+      { name: "Frostbite Bow", rarity: "Epic", chance: 0.08, color: "text-purple-400", bg: "bg-purple-900", price: 800 },
+      { name: "Dragon Scale Armor", rarity: "Epic", chance: 0.08, color: "text-purple-400", bg: "bg-purple-900", price: 800 },
+      { name: "Medallion of Power", rarity: "Epic", chance: 0.08, color: "text-purple-400", bg: "bg-purple-900", price: 800 },
+      { name: "Soul Reaver", rarity: "Epic", chance: 0.08, color: "text-purple-400", bg: "bg-purple-900", price: 800 },
+      { name: "Sword of the Fallen King", rarity: "Epic", chance: 0.08, color: "text-purple-400", bg: "bg-purple-900", price: 800 },
+
+      { name: "Excalibur", rarity: "Legendary", chance: 0.015, color: "text-yellow-400", bg: "bg-yellow-950", price: 1000 },
+      { name: "Crown of the Sun King", rarity: "Legendary", chance: 0.015, color: "text-yellow-400", bg: "bg-yellow-950", price: 1000 },
+      { name: "Phoenix Feather Cloak", rarity: "Legendary", chance: 0.015, color: "text-yellow-400", bg: "bg-yellow-950", price: 1000 },
+      { name: "Vampire Scepter", rarity: "Legendary", chance: 0.015, color: "text-yellow-400", bg: "bg-yellow-950", price: 1000 },
+      { name: "Trident of Leviathan", rarity: "Legendary", chance: 0.015, color: "text-yellow-400", bg: "bg-yellow-950", price: 1000 },
+
+      { name: "Aegis of the Universe", rarity: "Mythic", chance: 0.005, color: "text-pink-400", bg: "bg-pink-900", price: 5000 },
+      { name: "Wand of Creation", rarity: "Mythic", chance: 0.005, color: "text-pink-400", bg: "bg-pink-900", price: 5000 },
+      { name: "Gauntlet of the Void", rarity: "Mythic", chance: 0.005, color: "text-pink-400", bg: "bg-pink-900", price: 5000 },
+      { name: "Soul Stone", rarity: "Mythic", chance: 0.005, color: "text-pink-400", bg: "bg-pink-900", price: 5000 },
+      { name: "Aura of the Creator", rarity: "Mythic", chance: 0.005, color: "text-pink-400", bg: "bg-pink-900", price: 5000 },
+
+      // New rarities added
+      { name: "Chalice of the First God", rarity: "Ancient", chance: 0.002, color: "text-orange-400", bg: "bg-orange-900", price: 10000 },
+      { name: "Orb of Primeval Energy", rarity: "Ancient", chance: 0.002, color: "text-orange-400", bg: "bg-orange-900", price: 10000 },
+      { name: "Axe of the Titan", rarity: "Ancient", chance: 0.002, color: "text-orange-400", bg: "bg-orange-900", price: 10000 },
+      { name: "Scepter of Ages", rarity: "Ancient", chance: 0.002, color: "text-orange-400", bg: "bg-orange-900", price: 10000 },
+      { name: "Helm of the Forgotten", rarity: "Ancient", chance: 0.002, color: "text-orange-400", bg: "bg-orange-900", price: 10000 },
+
+      { name: "Starfall Blade", rarity: "Cosmic", chance: 0.0005, color: "text-sky-400", bg: "bg-sky-900", price: 50000 },
+      { name: "Cosmic Amulet", rarity: "Cosmic", chance: 0.0005, color: "text-sky-400", bg: "bg-sky-900", price: 50000 },
+      { name: "Infinity Staff", rarity: "Cosmic", chance: 0.0005, color: "text-sky-400", bg: "bg-sky-900", price: 50000 },
+      { name: "Void Ripper", rarity: "Cosmic", chance: 0.0005, color: "text-sky-400", bg: "bg-sky-900", price: 50000 },
+      { name: "Stardust Boots", rarity: "Cosmic", chance: 0.0005, color: "text-sky-400", bg: "bg-sky-900", price: 50000 },
+
+      { name: "Sword of Creation", rarity: "Divine", chance: 0.0001, color: "text-amber-200", bg: "bg-amber-950", price: 200000 },
+      { name: "Shield of Eternity", rarity: "Divine", chance: 0.0001, color: "text-amber-200", bg: "bg-amber-950", price: 200000 },
+      { name: "Crown of Divinity", rarity: "Divine", chance: 0.0001, color: "text-amber-200", bg: "bg-amber-950", price: 200000 },
+      { name: "Spear of the Heavens", rarity: "Divine", chance: 0.0001, color: "text-amber-200", bg: "bg-amber-950", price: 200000 },
+      { name: "Armor of the Gods", rarity: "Divine", chance: 0.0001, color: "text-amber-200", bg: "bg-amber-950", price: 200000 }
+    ];
+
+    const potions = [
+        { name: "Small Lucky Potion", effect: 0.2, price: 50 },
+        { name: "Medium Lucky Potion", effect: 0.5, price: 150 },
+        { name: "Large Lucky Potion", effect: 1.0, price: 500 },
+        { name: "Heavenly Potion", effect: 1000000, price: 1000000 } // Added the new Heavenly Potion
+    ];
+
+    const getItemsByRarity = (rarity) => allItems.filter(item => item.rarity === rarity);
+
+    const lootBoxes = {
+      standard: {
+        name: "Standard Crate",
+        price: 5,
+        description: "Chance for Common and Uncommon items. Rare if you're lucky.",
+        chancePool: [
+          {rarity: "Common", chance: 0.5},
+          {rarity: "Uncommon", chance: 0.3},
+          {rarity: "Rare", chance: 0.15},
+          {rarity: "Epic", chance: 0.04},
+          {rarity: "Legendary", chance: 0.01}
+        ]
+      },
+      premium: {
+        name: "Premium Crate",
+        price: 200,
+        description: "Higher chance for Rare, Epic, and Legendary items.",
+        chancePool: [
+          {rarity: "Common", chance: 0.1},
+          {rarity: "Uncommon", chance: 0.2},
+          {rarity: "Rare", chance: 0.3},
+          {rarity: "Epic", chance: 0.25},
+          {rarity: "Legendary", chance: 0.1},
+          {rarity: "Mythic", chance: 0.049},
+          {rarity: "Ancient", chance: 0.001}
+        ]
+      },
+      free: {
+        name: "Free Crate",
+        price: 0,
+        description: "100% free to open. High chance for Common and Uncommon items.",
+        chancePool: [
+          { rarity: "Common", chance: 0.79 },
+          { rarity: "Uncommon", chance: 0.15 },
+          { rarity: "Rare", chance: 0.04 },
+          { rarity: "Epic", chance: 0.009 },
+          { rarity: "Legendary", chance: 0.001 }
+        ]
+      },
+      boss: {
+        name: "Boss Crate",
+        price: 500,
+        description: "Guaranteed Rare or better. High chance for Legendary.",
+        chancePool: [
+          {rarity: "Rare", chance: 0.4},
+          {rarity: "Epic", chance: 0.3},
+          {rarity: "Legendary", chance: 0.25},
+          {rarity: "Mythic", chance: 0.049},
+          {rarity: "Ancient", chance: 0.001}
+        ]
+      },
+      void: {
+        name: "Void Crate",
+        price: 2000,
+        description: "The ultimate prize. Contains powerful Mythic items.",
+        chancePool: [
+          {rarity: "Epic", chance: 0.2},
+          {rarity: "Legendary", chance: 0.3},
+          {rarity: "Mythic", chance: 0.49},
+          {rarity: "Ancient", chance: 0.009},
+          {rarity: "Cosmic", chance: 0.001}
+        ]
+      },
+      elite: {
+        name: "Elite Crate",
+        price: 1500,
+        description: "High chance for Epic and Legendary items. Guaranteed Rare.",
+        chancePool: [
+          { rarity: "Rare", chance: 0.45 },
+          { rarity: "Epic", chance: 0.35 },
+          { rarity: "Legendary", chance: 0.15 },
+          { rarity: "Mythic", chance: 0.049 },
+          { rarity: "Ancient", chance: 0.001}
+        ]
+      },
+      infinity: {
+        name: "Infinity Crate",
+        price: 5000,
+        description: "A mythical crate. Guaranteed Legendary, with a chance for Mythic.",
+        chancePool: [
+          { rarity: "Legendary", chance: 0.7 },
+          { rarity: "Mythic", chance: 0.29 },
+          { rarity: "Ancient", chance: 0.009 },
+          { rarity: "Cosmic", chance: 0.001 }
+        ]
+      },
+      shimmering: {
+        name: "Shimmering Crate",
+        price: 1000,
+        description: "Rare items or better. No Common or Uncommon.",
+        chancePool: [
+          { rarity: "Rare", chance: 0.5 },
+          { rarity: "Epic", chance: 0.3 },
+          { rarity: "Legendary", chance: 0.15 },
+          { rarity: "Mythic", chance: 0.049 },
+          { rarity: "Ancient", chance: 0.001}
+        ]
+      },
+      divine: {
+        name: "Divine Crate",
+        price: 10000,
+        description: "The rarest of the rare. Chance to get a Divine item.",
+        chancePool: [
+          { rarity: "Legendary", chance: 0.5 },
+          { rarity: "Mythic", chance: 0.4 },
+          { rarity: "Ancient", chance: 0.08 },
+          { rarity: "Cosmic", chance: 0.015 },
+          { rarity: "Divine", chance: 0.005 }
+        ]
+      }
+    };
+
+    const applyLuckBonus = (chancePool, luckBonus) => {
+        if (luckBonus === 0) return chancePool;
+        
+        const commonChanceObj = chancePool.find(p => p.rarity === 'Common');
+        const commonChance = commonChanceObj ? commonChanceObj.chance : 0;
+        const bonusReduction = Math.min(commonChance, luckBonus * 0.2);
+        
+        const newCommonChance = commonChance - bonusReduction;
+        const nonCommonSum = 1 - commonChance;
+        const newNonCommonSum = nonCommonSum + bonusReduction;
+
+        return chancePool.map(p => {
+            if (p.rarity === 'Common') {
+                return { ...p, chance: newCommonChance };
+            } else {
+                return { ...p, chance: (p.chance / nonCommonSum) * newNonCommonSum };
+            }
+        });
+    };
+
+    const getRandomItemFromPool = (pool) => {
+      const rand = Math.random();
+      let cumulative = 0;
+      for (const item of pool) {
+        cumulative += item.chance;
+        if (rand <= cumulative) return item.rarity;
+      }
+      return pool[0].rarity;
+    };
+
+    const getStats = (collection) => {
+      const stats = { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0, Mythic: 0, Ancient: 0, Cosmic: 0, Divine: 0 };
+      collection.forEach(item => {
+        if (stats.hasOwnProperty(item.rarity)) {
+          stats[item.rarity]++;
+        }
+      });
+      return stats;
+    };
+
+    const getRarestItem = (collection) => {
+      const rarityOrder = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Ancient", "Cosmic", "Divine"];
+      return collection.reduce((rarest, item) => {
+        return rarityOrder.indexOf(item.rarity) > rarityOrder.indexOf(rarest.rarity) ? item : rarest;
+      }, { rarity: "Common", name: "No items yet", color: "text-gray-400", bg: "bg-gray-800" });
+    };
+
+    const Particle = ({ id }) => (
+      <div
+        className="particle"
+        style={{
+          left: `${Math.random() * 100 - 50}px`,
+          top: `${Math.random() * 50}px`,
+          '--rand-x': `${Math.random() * 100 - 50}px`
+        }}
+      />
+    );
+
+    const formatTime = (ms) => {
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    };
+
+    const AFK_REWARD_INTERVAL = 1000 * 60; // 1 minute
+
+    const App = () => {
+      const [collection, setCollection] = useState(() => {
+        const saved = localStorage.getItem('looty-collection');
+        return saved ? JSON.parse(saved) : [];
+      });
+      const [tab, setTab] = useState("open");
+      const [lastItem, setLastItem] = useState(null);
+      const [isOpening, setIsOpening] = useState(false);
+      const [particles, setParticles] = useState([]);
+      const [lastRewardDate, setLastRewardDate] = useState(() => localStorage.getItem('looty-last-reward'));
+      const [canClaimReward, setCanClaimReward] = useState(false);
+      const [currency, setCurrency] = useState(() => {
+        const saved = localStorage.getItem('looty-currency');
+        return saved ? parseInt(saved, 10) : 100; // Initialize with 100 currency
+      });
+      const [luckBonus, setLuckBonus] = useState(0);
+      const [showConfirm, setShowConfirm] = useState(false);
+      const [confirmAction, setConfirmAction] = useState(null);
+      const [lastAFKRewardTime, setLastAFKRewardTime] = useState(() => {
+        const savedTime = localStorage.getItem('looty-last-afk-reward');
+        return savedTime ? parseInt(savedTime, 10) : 0;
+      });
+      const [canClaimAFKReward, setCanClaimAFKReward] = useState(false);
+      const [timeToNextAFKReward, setTimeToNextAFKReward] = useState(0);
+      const [showCutscene, setShowCutscene] = useState(null);
+
+      useEffect(() => {
+        localStorage.setItem('looty-collection', JSON.stringify(collection));
+      }, [collection]);
+      
+      useEffect(() => {
+        localStorage.setItem('looty-currency', currency.toString());
+      }, [currency]);
+
+      useEffect(() => {
+        const today = new Date().toDateString();
+        if (lastRewardDate !== today) {
+          setCanClaimReward(true);
+        } else {
+          setCanClaimReward(false);
+        }
+
+        const updateAFKStatus = () => {
+          const now = Date.now();
+          const timeElapsed = now - lastAFKRewardTime;
+          if (timeElapsed >= AFK_REWARD_INTERVAL) {
+            setCanClaimAFKReward(true);
+            setTimeToNextAFKReward(0);
+          } else {
+            setCanClaimAFKReward(AFK_REWARD_INTERVAL - timeElapsed);
+          }
+        };
+
+        updateAFKStatus();
+        const intervalId = setInterval(updateAFKStatus, 1000);
+        return () => clearInterval(intervalId);
+      }, [lastRewardDate, lastAFKRewardTime]);
+
+      const handleConfirm = (action) => {
+          setConfirmAction(() => action);
+          setShowConfirm(true);
+      };
+
+      const handleConfirmYes = () => {
+          if (confirmAction) {
+              confirmAction();
+          }
+          setShowConfirm(false);
+          setConfirmAction(null);
+      };
+
+      const handleConfirmNo = () => {
+          setShowConfirm(false);
+          setConfirmAction(null);
+      };
+
+      const openBox = (boxType) => {
+        const box = lootBoxes[boxType];
+        
+        if (boxType !== "free") {
+            if (currency < box.price) {
+                setLastItem({ name: "Not enough currency!", rarity: "Common", color: "text-red-400", bg: "bg-red-950" });
+                return;
+            } else {
+                setCurrency(prev => prev - box.price);
+            }
+        }
+
+        setIsOpening(true);
+        setParticles([...Array(20)].map((_, i) => i));
+
+        const finalChancePool = applyLuckBonus(box.chancePool, luckBonus);
+        
+        setTimeout(() => {
+          const rarity = getRandomItemFromPool(finalChancePool);
+          const possibleItems = getItemsByRarity(rarity);
+          const newItem = possibleItems[Math.floor(Math.random() * possibleItems.length)];
+          
+          const existingItemIndex = collection.findIndex(item => item.name === newItem.name);
+          if (existingItemIndex > -1) {
+              const newCollection = [...collection];
+              newCollection[existingItemIndex].count = (newCollection[existingItemIndex].count || 1) + 1;
+              setCollection(newCollection);
+          } else {
+              setCollection([...collection, {...newItem, id: Math.random(), count: 1}]);
+          }
+
+          setLastItem(newItem);
+          setIsOpening(false);
+          setParticles([]);
+          setLuckBonus(0);
+
+          if (["Epic", "Legendary", "Mythic", "Ancient", "Cosmic", "Divine"].includes(newItem.rarity)) {
+            setShowCutscene(newItem);
+          }
+
+        }, 800);
+      };
+
+      const claimDailyReward = () => {
+        if (canClaimReward) {
+          setIsOpening(true);
+          setParticles([...Array(20)].map((_, i) => i));
+          setCurrency(prev => prev + 100);
+          setTimeout(() => {
+            setIsOpening(false);
+            setParticles([]);
+            const today = new Date().toDateString();
+            localStorage.setItem('looty-last-reward', today);
+            setLastRewardDate(today);
+            setCanClaimReward(false);
+            setLastItem({ name: "+100 Gold", rarity: "Common", color: "text-yellow-400", bg: "bg-yellow-950" });
+          }, 800);
+        }
+      };
+      
+      const claimAFKReward = () => {
+          if (canClaimAFKReward) {
+              setIsOpening(true);
+              setParticles([...Array(20)].map((_, i) => i));
+              setCurrency(prev => prev + 1);
+              setTimeout(() => {
+                  setIsOpening(false);
+                  setParticles([]);
+                  const now = Date.now();
+                  localStorage.setItem('looty-last-afk-reward', now);
+                  setLastAFKRewardTime(now);
+                  setCanClaimAFKReward(false);
+                  setLastItem({ name: "+1 Gold (AFK)", rarity: "Common", color: "text-yellow-400", bg: "bg-yellow-950" });
+              }, 800);
+          }
+      };
+
+      const buyItem = (item) => {
+          if (currency >= item.price) {
+              setCurrency(prev => prev - item.price);
+              
+              const existingItemIndex = collection.findIndex(i => i.name === item.name);
+              if (existingItemIndex > -1) {
+                  const newCollection = [...collection];
+                  newCollection[existingItemIndex].count = (newCollection[existingItemIndex].count || 1) + 1;
+                  setCollection(newCollection);
+              } else {
+                  setCollection(prev => [...prev, {...item, id: Math.random(), count: 1}]);
+              }
+
+              setLastItem({...item, name: `Purchased ${item.name}`});
+          } else {
+              setLastItem({ name: "Not enough currency!", rarity: "Common", color: "text-red-400", bg: "bg-red-950" });
+          }
+      };
+
+      const sellItem = (itemToSell) => {
+          const newCollection = [...collection];
+          const itemIndex = newCollection.findIndex(item => item.name === itemToSell.name);
+
+          if (itemIndex === -1) {
+              setLastItem({ name: "Item does not exist.", rarity: "Common", color: "text-red-400", bg: "bg-red-950" });
+              return;
+          }
+
+          const soldPrice = Math.floor(itemToSell.price * 0.5); // 50% of the original price
+          setCurrency(prev => prev + soldPrice);
+
+          if (newCollection[itemIndex].count > 1) {
+              newCollection[itemIndex].count -= 1;
+              setCollection(newCollection);
+          } else {
+              newCollection.splice(itemIndex, 1);
+              setCollection(newCollection);
+          }
+          
+          setLastItem({
+              name: `Sold ${itemToSell.name} for ${soldPrice} Gold.`,
+              rarity: "Uncommon",
+              color: "text-yellow-400",
+              bg: "bg-yellow-950"
+          });
+      };
+
+
+      const usePotion = (potion) => {
+        if (currency >= potion.price) {
+            setCurrency(prev => prev - potion.price);
+            setLuckBonus(potion.effect);
+            setLastItem({ name: `You used a ${potion.name}. Luck increased by +${potion.effect * 100}%. Open a box now!`, rarity: "Uncommon", color: "text-green-400", bg: "bg-green-900" });
+        } else {
+            setLastItem({ name: "Not enough currency to buy the potion!", rarity: "Common", color: "text-red-400", bg: "bg-red-950" });
+        }
+      };
+      
+      const renderCollection = () => {
+        const rarityOrder = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Ancient", "Cosmic", "Divine"];
+        const groupedByRarity = allItems.reduce((acc, item) => {
+          acc[item.rarity] = acc[item.rarity] || [];
+          return acc;
+        }, {});
+
+        const sortedGroupedItems = Object.keys(groupedByRarity).reduce((acc, rarity) => {
+          acc[rarity] = collection.filter(item => item.rarity === rarity).sort((a,b) => a.name.localeCompare(b.name));
+          return acc;
+        }, {});
+
+        return (
+            <div className="space-y-6">
+                {rarityOrder.map(rarity => {
+                    const itemsInRarity = sortedGroupedItems[rarity];
+                    if (itemsInRarity && itemsInRarity.length > 0) {
+                        const rarityItem = allItems.find(i => i.rarity === rarity);
+                        return (
+                            <div key={rarity} className="space-y-4">
+                                <h3 className={`text-xl font-bold ${rarityItem.color}`}>{rarity}</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {itemsInRarity.map(item => (
+                                        <div key={item.name} className={`card p-3 rounded-xl ${item.bg} ${item.color} fade-in transform-gpu hover:scale-105`}>
+                                            <p className="font-bold text-base">{item.name}</p>
+                                            <p className="text-sm">x{(item.count || 1)}</p>
+                                            <div className="mt-2 text-center">
+                                                <button
+                                                    className="w-full py-1 text-sm rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors"
+                                                    onClick={() => sellItem(item)}
+                                                >
+                                                    Sell ({Math.floor(item.price * 0.5)})
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    }
+                    return null;
+                })}
+            </div>
+        );
+      };
+
+      const renderDashboard = () => {
+        const stats = getStats(collection);
+        const rarityCounts = Object.keys(stats).map(rarity => {
+            const foundItem = allItems.find(i => i.rarity === rarity);
+            return {
+                rarity,
+                count: stats[rarity],
+                color: foundItem ? foundItem.color : "text-gray-400"
+            };
+        });
+
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-blue-300">Statistics</h2>
+            <div className="space-y-2 text-gray-200">
+                <p className="text-base">Current Gold: <span className="font-bold text-yellow-300">{currency}</span></p>
+                <p className="text-base">Boxes Opened: <span className="font-bold">{collection.reduce((sum, item) => sum + (item.count || 1), 0)}</span></p>
+                <p className="text-base">
+                    Rarest Item Found:{" "}
+                    <span className={`font-bold ${getRarestItem(collection).color}`}>
+                        {getRarestItem(collection).name} ({getRarestItem(collection).rarity})
+                    </span>
+                </p>
+            </div>
+            <div className="pt-4 border-t border-gray-700">
+                <h3 className="text-xl font-semibold text-green-300">Detailed Stats</h3>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {rarityCounts.map(stat => (
+                        <div key={stat.rarity} className="card p-3 rounded-xl flex justify-between items-center">
+                            <span className={`font-semibold text-sm ${stat.color}`}>{stat.rarity}</span>
+                            <span className="font-bold">{stat.count}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <button
+                className="mt-6 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-xl transition-colors duration-200"
+                onClick={() => handleConfirm(() => {
+                    localStorage.clear();
+                    setCollection([]);
+                    setCurrency(100);
+                    setLastItem(null);
+                    setLastRewardDate(null);
+                    setCanClaimReward(true);
+                    setLuckBonus(0);
+                    setLastAFKRewardTime(0);
+                    setCanClaimAFKReward(false);
+                })}
+            >
+                Reset Data
+            </button>
+          </div>
+        );
+      };
+
+      const renderLootBoxes = () => {
+        return Object.keys(lootBoxes).map(boxKey => {
+            const box = lootBoxes[boxKey];
+            const isFree = boxKey === 'free';
+            return (
+                <div key={boxKey} className="card p-4 rounded-xl glass flex flex-col justify-between">
+                    <div className="text-center">
+                        <p className="font-bold text-lg">{box.name}</p>
+                        <p className="text-sm text-gray-400 mt-2">{box.description}</p>
+                    </div>
+                    <div className="mt-4 text-center">
+                        <p className="font-bold text-yellow-300 mb-2">{box.price} Gold</p>
+                        <button
+                            className={`w-full py-2 rounded-lg font-bold transition-colors ${isFree ? 'bg-green-600 hover:bg-green-700 button-pulse' : (currency >= box.price ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 cursor-not-allowed')}`}
+                            onClick={() => openBox(boxKey)}
+                            disabled={isOpening || (!isFree && currency < box.price)}
+                        >
+                            {isFree ? "Open Now" : "Buy & Open"}
+                        </button>
+                    </div>
+                </div>
+            );
+        });
+      };
+
+      const Cutscene = ({ item }) => (
+        <div className="cutscene-modal">
+          <p className="text-xl md:text-3xl font-bold mb-4">Woooaaah!</p>
+          <p className="text-5xl md:text-7xl font-extrabold shiny-text mb-8">{item.rarity}!</p>
+          <div className={`p-8 rounded-xl ${item.bg} ${item.color} shadow-2xl pulse-subtle`}>
+            <p className="text-2xl md:text-4xl font-bold">{item.name}</p>
+          </div>
+          <button
+            onClick={() => setShowCutscene(null)}
+            className="mt-12 px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-full font-bold text-xl transition-colors"
+          >
+            Continue
+          </button>
+        </div>
+      );
+      
+      const renderShop = () => {
+        return (
+          <div className="space-y-8">
+              <h2 className="text-3xl font-bold text-blue-300">Shop</h2>
+              <p className="text-gray-400">You have <span className="font-bold text-yellow-300">{currency}</span> gold.</p>
+
+              <div className="space-y-6">
+                  <h3 className="text-2xl font-bold text-green-300">Lucky Potions</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {potions.map(potion => (
+                          <div key={potion.name} className="card p-4 rounded-xl glass flex flex-col justify-between">
+                              <div className="text-center">
+                                  <p className="font-bold text-lg">{potion.name}</p>
+                                  <p className="text-sm text-gray-400 mt-2">Increase chance for rare items: +{potion.effect * 100}%</p>
+                              </div>
+                              <div className="mt-4 text-center">
+                                  <p className="font-bold text-yellow-300 mb-2">{potion.price} Gold</p>
+                                  <button
+                                      className={`w-full py-2 rounded-lg font-bold transition-colors ${currency >= potion.price ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 cursor-not-allowed'}`}
+                                      onClick={() => usePotion(potion)}
+                                      disabled={currency < potion.price}
+                                  >
+                                      Buy Now
+                                  </button>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+
+              <div className="space-y-6">
+                  <h3 className="text-2xl font-bold text-green-300">Items</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {allItems.map(item => (
+                          <div key={item.name} className={`card p-4 rounded-xl ${item.bg} ${item.color} fade-in transform-gpu hover:scale-105`}>
+                              <p className="font-bold text-lg">{item.name}</p>
+                              <p className="text-sm">Rarity: {item.rarity}</p>
+                              <p className="text-sm">Price: {item.price}</p>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          </div>
+        )
+      }
+
+
+      const renderTabContent = () => {
+          switch (tab) {
+              case "open":
+                  return (
+                    <div className="text-center">
+                        <h1 className="text-3xl font-bold mb-4 text-blue-400">Open Mysterious Boxes</h1>
+                        {luckBonus > 0 && (
+                            <p className="text-lg font-bold text-green-400 mb-4">
+                                Your luck has been increased by <span className="text-yellow-300">+{luckBonus * 100}%</span>!
+                            </p>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-8">
+                            {renderLootBoxes()}
+                        </div>
+                        <div className="relative inline-block mt-4">
+                          {particles.map((id) => (
+                            <Particle key={id} id={id} />
+                          ))}
+                        </div>
+                        {lastItem && !showCutscene && (
+                          <div className="mt-8 text-lg loot-drop">
+                            <div className={`card p-6 rounded-xl ${lastItem.bg} ${lastItem.color} shadow-lg`}>
+                              You received: <span className="font-bold">{lastItem.name}</span> ({lastItem.rarity})
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                  )
+              case "rewards":
+                  return (
+                      <div className="space-y-6">
+                          <h2 className="text-2xl font-bold text-blue-300">Rewards</h2>
+                          <div className="mt-8 space-y-4">
+                              <button
+                                  className={`w-full max-w-sm mx-auto block px-8 py-4 bg-green-600 hover:bg-green-700 rounded-xl font-bold text-lg transition-transform duration-300 ${!canClaimReward ? 'cursor-not-allowed opacity-50' : ''}`}
+                                  onClick={claimDailyReward}
+                                  disabled={!canClaimReward || isOpening}
+                              >
+                                  {canClaimReward ? "Claim Daily Reward (+100)" : "Already claimed today"}
+                              </button>
+                              <button
+                                  className={`w-full max-w-sm mx-auto block px-8 py-4 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold text-lg transition-transform duration-300 ${!canClaimAFKReward ? 'cursor-not-allowed opacity-50' : ''}`}
+                                  onClick={claimAFKReward}
+                                  disabled={!canClaimAFKReward || isOpening}
+                              >
+                                  {canClaimAFKReward ? "Claim AFK Reward (+1)" : `AFK: ${formatTime(timeToNextAFKReward)}`}
+                              </button>
+                          </div>
+                      </div>
+                  )
+              case "collection":
+                  return (
+                      <div className="space-y-6">
+                          <h2 className="text-2xl font-bold text-blue-300">Inventory</h2>
+                          <p className="text-gray-400">All the items you've found. Sorted by rarity for easy viewing.</p>
+                          {collection.length === 0 ? (
+                              <p className="text-gray-400">No items found yet!</p>
+                          ) : (
+                              renderCollection()
+                          )}
+                      </div>
+                  );
+              case "dashboard":
+                  return renderDashboard();
+              case "shop":
+                  return renderShop();
+              default:
+                  return null;
+          }
+      };
+
+
+      return (
+        <div className="flex flex-col md:flex-row h-screen">
+          {showConfirm && (
+            <div className="modal">
+                <div className="modal-content">
+                    <p className="text-lg font-bold mb-4">Confirm</p>
+                    <p>Are you sure you want to reset all data?</p>
+                    <div className="mt-6 flex justify-center space-x-4">
+                        <button
+                            className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold transition-colors"
+                            onClick={handleConfirmYes}
+                        >
+                            Yes
+                        </button>
+                        <button
+                            className="px-6 py-2 bg-gray-500 hover:bg-gray-600 rounded-lg font-bold transition-colors"
+                            onClick={handleConfirmNo}
+                        >
+                            No
+                        </button>
+                    </div>
+                </div>
+            </div>
+          )}
+
+          {showCutscene && <Cutscene item={showCutscene} />}
+
+          {/* Mobile Tab Navigation */}
+          <div className="fixed bottom-0 left-0 right-0 md:hidden glass z-50">
+              <nav className="flex justify-around items-center p-2">
+                  <button
+                      className={`flex-1 text-center p-2 rounded-xl transition-colors duration-200 ${tab === "open" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-700"}`}
+                      onClick={() => setTab("open")}
+                  >
+                      Open
+                  </button>
+                  <button
+                      className={`flex-1 text-center p-2 rounded-xl transition-colors duration-200 ${tab === "rewards" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-700"}`}
+                      onClick={() => setTab("rewards")}
+                  >
+                      Rewards
+                  </button>
+                  <button
+                      className={`flex-1 text-center p-2 rounded-xl transition-colors duration-200 ${tab === "collection" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-700"}`}
+                      onClick={() => setTab("collection")}
+                  >
+                      Inventory
+                  </button>
+                  <button
+                      className={`flex-1 text-center p-2 rounded-xl transition-colors duration-200 ${tab === "dashboard" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-700"}`}
+                      onClick={() => setTab("dashboard")}
+                  >
+                      Stats
+                  </button>
+                  <button
+                      className={`flex-1 text-center p-2 rounded-xl transition-colors duration-200 ${tab === "shop" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-700"}`}
+                      onClick={() => setTab("shop")}
+                  >
+                      Shop
+                  </button>
+              </nav>
+          </div>
+
+          {/* Desktop Sidebar */}
+          <div className="hidden md:flex w-64 glass p-4 shadow-xl flex-col">
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-6 text-center text-blue-300">Looty</h2>
+              <div className="text-center mb-4">
+                <span className="text-lg text-gray-400">Gold: <span className="font-bold text-yellow-300">{currency}</span></span>
+              </div>
+              <nav className="space-y-2">
+                <button
+                  className={`w-full text-left p-2 rounded-xl transition-colors duration-200 ${tab === "open" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+                  onClick={() => setTab("open")}
+                >
+                  Open Loot Boxes
+                </button>
+                <button
+                  className={`w-full text-left p-2 rounded-xl transition-colors duration-200 ${tab === "rewards" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+                  onClick={() => setTab("rewards")}
+                >
+                  Rewards
+                </button>
+                <button
+                  className={`w-full text-left p-2 rounded-xl transition-colors duration-200 ${tab === "collection" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+                  onClick={() => setTab("collection")}
+                >
+                  Inventory
+                </button>
+                <button
+                  className={`w-full text-left p-2 rounded-xl transition-colors duration-200 ${tab === "dashboard" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+                  onClick={() => setTab("dashboard")}
+                >
+                  Stats
+                </button>
+                <button
+                  className={`w-full text-left p-2 rounded-xl transition-colors duration-200 ${tab === "shop" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+                  onClick={() => setTab("shop")}
+                >
+                  Shop
+                </button>
+              </nav>
+            </div>
+            <div className="mt-auto pt-4 border-t border-gray-700">
+              <p className="text-sm text-gray-400">UserID: ...</p>
+            </div>
+          </div>
+          
+          {/* Main Content */}
+          <div className="flex-1 p-4 md:p-6 overflow-auto relative mb-16 md:mb-0">
+            <div className="text-center mb-4 md:hidden">
+              <span className="text-lg text-gray-400">Gold: <span className="font-bold text-yellow-300">{currency}</span></span>
+            </div>
+            {renderTabContent()}
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
